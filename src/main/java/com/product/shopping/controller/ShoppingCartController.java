@@ -17,15 +17,22 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.product.shopping.exception.EmptyShoppingCartCreationException;
+import com.product.shopping.exception.ProductQuantityExceedException;
 import com.product.shopping.exception.ShoppingCartNotFoundException;
 import com.product.shopping.model.ShoppingCartDto;
 import com.product.shopping.services.ShoppingCartService;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
 @RequestMapping(produces = "application/json")
+@Api(value = "Shopping Cart Backend", produces = "application/json")
 public class ShoppingCartController {
 
 	private final ShoppingCartService shoppingCartService;
@@ -35,6 +42,9 @@ public class ShoppingCartController {
 		this.shoppingCartService = shoppingCartService;
 	}
 
+	@ApiOperation(value = "Get all shopping carts", response = ResponseEntity.class)
+	@ApiResponses(value = { @ApiResponse(code = 200, message = "OK"),
+			@ApiResponse(code = 404, message = "No shopping cart found.") })
 	@GetMapping("/shoppingcart")
 	public ResponseEntity<List<ShoppingCartDto>> getShoppingCarts() {
 		List<ShoppingCartDto> shoppingCartList = shoppingCartService.getShoppingCarts();
@@ -45,8 +55,12 @@ public class ShoppingCartController {
 
 	}
 
+	@ApiOperation(value = "Get shopping cart by cart id", response = ResponseEntity.class)
+	@ApiResponses(value = { @ApiResponse(code = 200, message = "OK"),
+			@ApiResponse(code = 404, message = "Shopping cart ID not found") })
 	@GetMapping("/shoppingcart/{cartid}")
-	public ResponseEntity<ShoppingCartDto> getShoppingCart(@PathVariable(name = "cartid") Long cartid) {
+	public ResponseEntity<ShoppingCartDto> getShoppingCart(
+			@ApiParam(value = "ShoppingCart ID for fetching Shopping cart", example = "1") @PathVariable(name = "cartid") Long cartid) {
 		log.debug("cartid: " + cartid);
 		try {
 			ShoppingCartDto shoppingCartDto = shoppingCartService.getShoppingCart(cartid);
@@ -57,29 +71,45 @@ public class ShoppingCartController {
 
 	}
 
+	@ApiOperation(value = "Save shopping cart", response = ResponseEntity.class)
+	@ApiResponses(value = { @ApiResponse(code = 201, message = "CREATED"),
+			@ApiResponse(code = 404, message = "Empty Shopping cart creation"),
+			@ApiResponse(code = 404, message = "Product quantity exceed exception") })
 	@PostMapping("/shoppingcart")
-	public ResponseEntity<ShoppingCartDto> createShoppingCart(@RequestBody ShoppingCartDto shoppingCartDto) {
+	public ResponseEntity<ShoppingCartDto> createShoppingCart(
+			@ApiParam(value = "ShoppingCart object to store in database", required = true) @RequestBody(required = true) ShoppingCartDto shoppingCartDto) {
 		try {
 			return new ResponseEntity<>(shoppingCartService.saveShoppingCart(shoppingCartDto), HttpStatus.CREATED);
-		} catch (ShoppingCartNotFoundException | EmptyShoppingCartCreationException ce) {
+		} catch (EmptyShoppingCartCreationException | ProductQuantityExceedException ce) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, ce.getMessage());
 		}
 	}
 
+	@ApiOperation(value = "Update shopping cart", response = ResponseEntity.class)
+	@ApiResponses(value = { @ApiResponse(code = 200, message = "OK"),
+			@ApiResponse(code = 404, message = "Shopping cart ID not found"),
+			@ApiResponse(code = 404, message = "Empty Shopping cart creation"),
+			@ApiResponse(code = 404, message = "Product quantity exceed exception") })
 	@PutMapping("/shoppingcart/{cartid}")
 	public ResponseEntity<ShoppingCartDto> updateShoppingCart(
-			@PathVariable(name = "cartid", required = true) Long cartid, @RequestBody ShoppingCartDto shoppingCartDto) {
+			@ApiParam(value = "ShoppingCart ID to be updated", required = true, example = "1") @PathVariable(name = "cartid", required = true) Long cartid,
+			@ApiParam(value = "ShoppingCart object to store in database", required = true) @RequestBody(required = true) ShoppingCartDto shoppingCartDto) {
 		try {
 			shoppingCartDto.setCartId(cartid);
 			return new ResponseEntity<>(shoppingCartService.updateShoppingCart(shoppingCartDto), HttpStatus.OK);
-		} catch (ShoppingCartNotFoundException | EmptyShoppingCartCreationException ce) {
+		} catch (ShoppingCartNotFoundException | EmptyShoppingCartCreationException
+				| ProductQuantityExceedException ce) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, ce.getMessage());
 		}
 	}
 
+	@ApiOperation(value = "Delete shopping cart", response = ResponseEntity.class)
+	@ApiResponses(value = { @ApiResponse(code = 204, message = "NO_CONTENT"),
+			@ApiResponse(code = 404, message = "Shopping cart ID not found") })
 	@DeleteMapping("/shoppingcart/{cartid}")
 	@ResponseStatus(code = HttpStatus.NO_CONTENT)
-	public ResponseEntity<Void> deleteShoppingCart(@PathVariable(name = "cartid") Long cartid) {
+	public ResponseEntity<Void> deleteShoppingCart(
+			@ApiParam(value = "ShoppingCart ID to be deleted", required = true, example = "1") @PathVariable(name = "cartid", required = true) Long cartid) {
 		try {
 			shoppingCartService.deleteShoppingCart(cartid);
 			return ResponseEntity.noContent().build();

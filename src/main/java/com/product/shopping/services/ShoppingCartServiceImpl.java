@@ -4,13 +4,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.product.shopping.entities.Product;
 import com.product.shopping.entities.ProductCart;
 import com.product.shopping.entities.ShoppingCart;
 import com.product.shopping.exception.EmptyShoppingCartCreationException;
+import com.product.shopping.exception.ProductQuantityExceedException;
 import com.product.shopping.exception.ShoppingCartNotFoundException;
 import com.product.shopping.model.ProductCartDto;
 import com.product.shopping.model.ProductDto;
@@ -25,7 +25,6 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 
 	private final ShoppingCartRepository shoppingCartRepository;
 
-	@Autowired
 	public ShoppingCartServiceImpl(ShoppingCartRepository shoppingCartRepository) {
 		this.shoppingCartRepository = shoppingCartRepository;
 	}
@@ -51,10 +50,10 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 	public void deleteShoppingCart(Long shoppingCartId) {
 		try {
 			shoppingCartRepository.deleteById(shoppingCartId);
-		} catch(Exception e) {
-			throw new ShoppingCartNotFoundException("Shoppingcart with ID "+shoppingCartId+" does not found.");
+		} catch (Exception e) {
+			throw new ShoppingCartNotFoundException("Shoppingcart with ID " + shoppingCartId + " does not found.");
 		}
-		
+
 	}
 
 	@Override
@@ -76,19 +75,25 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 
 	private ShoppingCartDto saveShoppingCart(ShoppingCart shoppingCart, ShoppingCartDto shoppingCartDto) {
 		if (shoppingCartDto.getProducts() != null) {
-			shoppingCartDto.getProducts().forEach(productDto -> {
-				ProductCart productCart = new ProductCart();
+			shoppingCartDto.getProducts().stream().filter(productDto -> productDto.getQuantity() > 0)
+					.forEach(productDto -> {
+						ProductCart productCart = new ProductCart();
 
-				Product product = new Product();
-				product.setProductNumber(productDto.getProductDto().getProductNumber());
+						Product product = new Product();
+						product.setProductNumber(productDto.getProductDto().getProductNumber());
 
-				productCart.setProduct(product);
-				productCart.setQuantity(productDto.getQuantity()); //TODO: add constraint for quantity
-				shoppingCart.addProductCart(productCart);
-			});
+						productCart.setProduct(product);
+						if (productDto.getQuantity() > 10) {
+							throw new ProductQuantityExceedException(
+									"Quantity exceeded for product: " + productDto.getProductDto().getProductNumber());
+						}
+						productCart.setQuantity(productDto.getQuantity());
+
+						shoppingCart.addProductCart(productCart);
+					});
 			ShoppingCart savedShoppingCart = shoppingCartRepository.save(shoppingCart);
-			shoppingCartDto.setCartId(savedShoppingCart.getCartId());
-			return shoppingCartDto;
+			log.info("shoppingCart: " + savedShoppingCart);
+			return getShoppingCartDto(savedShoppingCart);
 		}
 
 		throw new EmptyShoppingCartCreationException("Empty shopping cart creation error.");
